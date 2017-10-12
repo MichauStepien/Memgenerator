@@ -1,0 +1,342 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using ExtensionMethods; //umo¿liwia korzystanie z klass...
+using Przegl¹darka.Properties; //skorzystaj z zasobów - zdjêæ
+
+namespace Przegl¹darka
+{
+    public partial class Form1 : Form
+    {
+        //Graphics g;
+        Bitmap glob; //globalna bitmapa do transferu
+        Font font = new Font("Arial", 16); Color kolor = Color.Black;
+        Bitmap oryginal;
+        int skala = 0;
+        int licz = 0;
+        int W_skali = 100;
+        const int MAXZOOM = 5;
+      
+        public Form1()
+        {
+            InitializeComponent();
+            panel1.AutoScroll = true;
+            pictureBox1.SizeMode = PictureBoxSizeMode.AutoSize;
+            oryginal=glob = new Bitmap(pictureBox1.Height, pictureBox1.Width);
+
+            this.panel1.MouseWheel += new System.Windows.Forms.MouseEventHandler(this.panel1_MouseWheel);
+            this.panel1.MouseDown += new System.Windows.Forms.MouseEventHandler(this.panel1_MouseDown);
+            this.panel1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.panel1_MouseMove);
+            this.pictureBox1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.panel1_MouseMove); //wykorzystaj ju¿ istniejac¹ funkcjê, PictureBox1 jest wewnatrz panelu1 - maj¹ sie zachowywaæ tak samo
+            this.pictureBox1.MouseDown += new System.Windows.Forms.MouseEventHandler(this.panel1_MouseDown);
+            
+            Bitmap bmp1 = new Bitmap(100, 100);
+            Graphics gra = Graphics.FromImage(bmp1);
+            Pen pen = new Pen(Color.Red);
+            SolidBrush red_brush = new SolidBrush(Color.Blue);
+            gra.DrawCircle(pen, 50, 50, 50);
+            gra.FillCircle(red_brush, 25, 25, 10);  
+            pictureBox2.Image = bmp1;
+
+            pictureBox3.Image = Resources.r_arrow; //strz¹³ka w prawo - zdjêcie z resources
+            groupBox1.Size = new Size(60,60);
+
+            toolTip1.SetToolTip(this.button1, "Do zmiany czcionki i rozmiaru");
+            toolTip1.SetToolTip(this.textBox1, "Do zmiany wype³nienia ramki od 0 do 100");
+            toolTip1.SetToolTip(this.richTextBox1, "Prosze podaæ treœæ napisu");
+            toolTip1.SetToolTip(this.checkBox1, "Umo¿liwia zoom'owanie/scroll'owanie myszk¹");
+        }
+
+        private void panel1_MouseWheel(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (checkBox1.Checked == true)
+            {
+                if (e.Delta == 120)
+                { 
+                    ZoomIn(pictureBox1);
+                }
+                else if (e.Delta == -120)
+                {  
+                    ZoomOut(pictureBox1);
+                }
+            }
+        }
+
+        private void panel1_MouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            Point mouseDownLocation = new Point(e.X, e.Y);
+            string eventString = null;
+
+            SolidBrush drawBrush = new SolidBrush(kolor);
+            Graphics graf = Graphics.FromImage(glob);
+            W_skali=100; // w procentach
+            // jeœli nie ma zdjêcia w PictureBox1 to zakoñczy funkcjie
+            try
+            {
+                //pictureBox.Image.Size nie zmienia siê
+                W_skali = 100 * pictureBox1.Width / pictureBox1.Image.Width;
+            } 
+            catch (Exception ex)
+            { MessageBox.Show("Prosze wybraæ zdjecie");return; }
+
+            int mouse_X = 100 * e.X / (W_skali);
+            int mouse_Y = 100 * e.Y / (W_skali);
+            switch (e.Button)
+            {
+                case MouseButtons.Left:
+                    eventString = "L";
+                    graf.DrawString(richTextBox1.Text, font, drawBrush, mouse_X, mouse_Y);
+                    pictureBox1.Image = glob;
+                    break;
+                case MouseButtons.Right:
+                    eventString = "R";
+                    int size = (int)font.Size;
+                    SizeF sizeStr = graf.MeasureString(richTextBox1.Text, font);
+                    int Sy = (int)sizeStr.Height; //wysokoœæ napisu
+                    int Sx = (int)sizeStr.Width; //szerokoœæ napisu
+                    int Tx = (int)graf.VisibleClipBounds.Width; //szerokoœæ obrazka
+                    Pen whitePen = new Pen(Color.White, Sy);
+                    if (Int32.TryParse(textBox1.Text, out skala) == false) { skala = 0; };
+                        int delta = skala*(Tx - Sx) /200;
+                        // delta to info o ile przesun¹æ wspó³rzêdn¹ x w lewo, i wyd³u¿yæ o 2-ktrotnoœæ delty prostok¹t
+                        graf.DrawRectangle(whitePen, mouse_X-delta, mouse_Y, Sx+2*delta, Sy);
+                        pictureBox1.Image = glob;
+                        skala = 0;
+                    break;
+                case MouseButtons.Middle:
+                    eventString = "M";
+                    glob = (Bitmap)oryginal.Clone();
+                    //operowanie na klonie, operacjie zwi¹zane z graphics nie wp³yn¹ na orygina³
+                    pictureBox1.Image = glob;
+                    break;
+                case MouseButtons.XButton1:
+                    eventString = "X1";
+                    break;
+                case MouseButtons.XButton2:
+                    eventString = "X2";
+                    break;
+                case MouseButtons.None:
+                default:
+                    break;
+            }
+            if (eventString != null)
+            {
+                
+                label2.Text = "" + eventString+ " skala" + W_skali;
+            }
+            else
+            {
+                MessageBox.Show("Lipa");
+            }
+           // panel1.Focus();
+            //panel1.Invalidate();
+        }
+
+        private void panel1_MouseMove(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            int mouseX = e.X;
+            int mouseY = e.Y;
+            label1.Text = "" + mouseX + ";" + mouseY;
+        }
+
+        
+
+        private void pictureBox1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        public void ZoomIn(PictureBox pic)
+        {
+            if (pic.Image == null) return;
+            if (pic.Width >= MAXZOOM * pic.Image.Width ||
+                pic.Height >= MAXZOOM * pic.Image.Height)
+            {
+                return;
+            }
+            pic.Width = (int)(pic.Width + pic.Image.Width / MAXZOOM);
+            pic.Height = (int)(pic.Height + pic.Image.Height / MAXZOOM);
+            pic.SizeMode = PictureBoxSizeMode.StretchImage;
+            pic.Location = new Point(0, 0);
+            pic.Refresh();
+            //dopasuj();
+        }
+
+        public void ZoomOut(PictureBox pic)
+        {
+            if (pic.Image == null) return;
+            if (pic.Width <= pic.Image.Width / MAXZOOM ||
+                pic.Height <= pic.Image.Height / MAXZOOM)
+            {
+                return;
+            }
+            pic.Width = (int)(pic.Width - pic.Image.Width / MAXZOOM);
+            pic.Height = (int)(pic.Height - pic.Image.Height / MAXZOOM);
+            pic.SizeMode = PictureBoxSizeMode.StretchImage;
+            pic.Location = new Point(0, 0);
+            pic.Refresh();
+            //dopasuj();
+        }
+
+        private void editToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            
+
+        }
+
+        private void panel1_Paint(object sender, PaintEventArgs e)
+        {
+           
+        }
+
+        private void edit_Click(object sender, EventArgs e)
+        {
+        
+        }
+
+        private void zoomInToolStripMenuItem1_Click_1(object sender, EventArgs e)
+        {
+            ZoomIn(pictureBox1);
+        }
+
+        private void zoomOutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ZoomOut(pictureBox1);
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void pictureBox2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void napisToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (pictureBox1 != null)
+            {
+                SaveFileDialog save = new SaveFileDialog();
+                if (save.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+                // pictureBox1.Image.Save(save.FileName);
+                glob.Save(save.FileName);
+
+            }
+
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+          
+            FontDialog fontDialog1 = new FontDialog();
+            fontDialog1.ShowColor = true;
+            
+
+            if (fontDialog1.ShowDialog() != DialogResult.Cancel)
+            {
+                font = fontDialog1.Font;
+                kolor = fontDialog1.Color;
+            }
+        }
+
+        private void openToolStripMenuItem1_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                OpenFileDialog ofd = new OpenFileDialog();
+                if (ofd.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+                oryginal = new Bitmap(ofd.FileName);
+                glob = new Bitmap(ofd.FileName);
+                if (oryginal.Width >= 5000 | oryginal.Height >= 5000)
+                    throw new Exception("Za du¿a szerokoœæ lub wysokoœæ, max 5000 x 5000");
+
+                if (oryginal.Height <= 10 | oryginal.Width <= 10)
+                    throw new Exception("Za ma³y, min 10 x 10");
+                W_skali = 100;
+                pictureBox1.Size = new Size(oryginal.Width, oryginal.Height);
+                pictureBox1.Image = oryginal;
+
+            }
+            catch (Exception ex)
+            { MessageBox.Show(ex.Message); }
+        }
+
+        private void richTextBox1_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void toolTip1_Popup(object sender, PopupEventArgs e)
+        {
+            
+        }
+
+        private void pictureBox3_Click(object sender, EventArgs e)
+        {
+            if (licz==0)
+            {
+                groupBox1.AutoSize = true;
+                pictureBox3.Image = Resources.l_arrow;
+                licz++;
+            }
+            else
+            {
+                groupBox1.AutoSize = false;
+                groupBox1.Size = new Size(60, 60);
+                pictureBox3.Image = Resources.r_arrow;
+                licz = 0;
+            }
+           
+        }
+    }
+
+   
+}
+
+namespace ExtensionMethods //U¿ycie innej przestrzeni nazw, plus funkcjie
+{
+
+    public static class GraphicsExtensions
+    {
+        public static void DrawCircle(this Graphics g, Pen pen,
+                                      float centerX, float centerY, float radius)
+        {
+            g.DrawEllipse(pen, centerX - radius, centerY - radius,
+                          radius + radius, radius + radius);
+        }
+
+        public static void FillCircle(this Graphics g, Brush brush,
+                                      float centerX, float centerY, float radius)
+        {
+            g.FillEllipse(brush, centerX - radius, centerY - radius,
+                          radius + radius, radius + radius);
+        }
+
+        public static void DrawString2pic(this Graphics g,string napis,Font font_, Color col,int Mx, int My)
+        {
+           // nie u¿ywana fukcja ale mo¿e sie przydaæ przy rozbudowie
+            SolidBrush drawBrush = new SolidBrush(col);          
+            g.DrawString(napis, font_, drawBrush, Mx, My);
+        }
+}
+
+
+}
